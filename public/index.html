@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat App</title>
+    <style>
+      .chat {
+        display: flex;
+        flex-direction: column;
+        height: 80vh;
+      }
+      .messages {
+        flex: 1;
+        overflow-y: auto;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .form {
+        display: flex;
+      }
+      .input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ccc;
+      }
+      .submit {
+        padding: 10px;
+        border: 1px solid #ccc;
+        background: #eee;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chat">
+      <ul class="messages"></ul>
+      <form class="form">
+        <input class="input" autocomplete="off" />
+        <button class="submit">Send</button>
+      </form>
+    </div>
+    <canvas
+      id="canvas"
+      width="600"
+      height="600"
+      style="border: solid 1px black"
+    ></canvas>
+
+    <script>
+function main() {
+  const host = location.origin.replace(/^http/, 'ws')
+  const ws = new WebSocket(host + '/ws')
+  const myId = self.crypto.randomUUID().substr(0, 8)
+
+  const canvas = document.getElementById('canvas')
+  const ctx = canvas.getContext('2d')
+
+  let stamping = false
+
+  // ♡を描く関数
+  function drawHeart(x, y) {
+    ctx.font = "40px serif"
+    ctx.fillText("♡", x - 10, y + 10)
+  }
+
+  // スタンプ送信
+  function sendStampEvent(x, y) {
+    ws.send(JSON.stringify({
+      type: 'stamp',
+      x, y
+    }))
+  }
+
+  // --- マウス操作 ---
+  canvas.addEventListener('mousedown', (e) => {
+    stamping = true
+    sendStampEvent(e.offsetX, e.offsetY)
+  })
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (stamping) {
+      sendStampEvent(e.offsetX, e.offsetY)
+    }
+  })
+
+  canvas.addEventListener('mouseup', () => {
+    stamping = false
+  })
+
+  canvas.addEventListener('mouseout', () => {
+    stamping = false
+  })
+
+  // --- WebSocket 受信 ---
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data)
+
+    // ♡スタンプ
+    if (msg.type === 'stamp') {
+      drawHeart(msg.x, msg.y)
+    }
+
+    // チャット
+    if (msg.type === 'chat') {
+      const { id, text } = msg
+      const messageList = document.querySelector('.messages')
+      const li = document.createElement('li')
+      li.textContent = (id === myId ? `(${id})自分:` : `${id}: `) + text
+      messageList.appendChild(li)
+    }
+  }
+
+  // --- チャット送信 ---
+  const form = document.querySelector('.form')
+  form.onsubmit = function (e) {
+    e.preventDefault()
+    const input = document.querySelector('.input')
+    const text = input.value
+    ws.send(JSON.stringify({ id: myId, text, type: 'chat' }))
+    input.value = ''
+    input.focus()
+  }
+}
+
+main()
+</script>
+
+  </body>
+</html>
